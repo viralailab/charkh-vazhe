@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>چرخ واژه</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
+  body {
+    font-family: "Vazirmatn", Tahoma, "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: linear-gradient(165deg, #2d1b4e 0%, #6d2b52 55%, #d96b43 125%);
+    color:#fff7ea; overflow:hidden; user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  #app { width:100%; max-width:480px; height:100%; display:flex; flex-direction:column; padding:8px 10px 10px; gap:8px; }
+  #hud { display:flex; align-items:stretch; gap:8px; }
+  .card {
+    background: rgba(255,244,220,.14); border:1px solid rgba(255,255,255,.25);
+    border-radius:14px; padding:6px 12px; backdrop-filter: blur(4px);
+  }
+  #lvlCard { flex:1; }
+  .label { font-size:10px; letter-spacing:.05em; opacity:.85; font-weight:700; }
+  #lvl { font-size:24px; font-weight:800; line-height:1.15; text-shadow:0 2px 6px rgba(0,0,0,.25); }
+  #lvlSub { font-size:12px; opacity:.9; font-weight:700; }
+  #coinCard { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:74px; }
+  #coins { font-size:22px; font-weight:800; line-height:1.1; }
+  .btns { display:flex; flex-direction:column; gap:6px; }
+  button {
+    font-family:inherit; font-weight:800; color:#fff7ea; cursor:pointer;
+    background: rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.35);
+    border-radius:12px; padding:7px 10px; font-size:14px; line-height:1.2;
+  }
+  button:active { transform:scale(.94); }
+  button:disabled { opacity:.45; cursor:default; }
+  /* ---- word slots ---- */
+  #slots {
+    flex:0 1 auto; overflow-y:auto; display:flex; flex-direction:column; gap:6px;
+    padding:8px; border-radius:16px; background: rgba(30,10,40,.25);
+    border:1px solid rgba(255,255,255,.14); min-height:86px; justify-content:center;
+  }
+  .slotRow { display:flex; gap:4px; justify-content:center; }
+  .box {
+    width:32px; height:36px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    font-size:19px; font-weight:800; background: rgba(255,255,255,.10);
+    border:1.5px solid rgba(255,255,255,.28); color:#fff7ea;
+  }
+  .box.ghost { color:rgba(255,240,200,.75); border-style:dashed; background:rgba(255,220,130,.10); }
+  .box.filled {
+    background: linear-gradient(160deg,#ffd98c,#ffb84d); color:#6b3410; border-color:#ffe9b0;
+    animation: pop .35s ease;
+  }
+  @keyframes pop { 0%{transform:scale(.4)} 60%{transform:scale(1.25)} 100%{transform:scale(1)} }
+  /* ---- current word ---- */
+  #current {
+    min-height:52px; display:flex; align-items:center; justify-content:center; gap:8px;
+    font-size:30px; font-weight:800; letter-spacing:0; padding:2px 10px;
+  }
+  #current .ph { font-size:15px; font-weight:700; opacity:.75; }
+  #current.bad { animation: shake .3s ease; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
+  /* ---- wheel ---- */
+  #wheelWrap { position:relative; width:min(84vw,330px); aspect-ratio:1/1; margin:0 auto; flex:0 0 auto; }
+  #ring {
+    position:absolute; inset:6%; border-radius:50%;
+    border:2px dashed rgba(255,235,190,.35); background: rgba(255,240,210,.06);
+  }
+  #hub {
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:86px; height:86px; border-radius:50%; text-align:center;
+    background: radial-gradient(circle at 35% 30%, #ffe9b8, #f5a94b 70%, #e07f2e);
+    color:#5e2b0d; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-shadow:0 6px 18px rgba(0,0,0,.35), inset 0 2px 5px rgba(255,255,255,.6);
+    font-weight:800;
+  }
+  #hub .big { font-size:21px; line-height:1; }
+  #hub .small { font-size:11px; opacity:.85; }
+  .letter {
+    position:absolute; width:58px; height:58px; border-radius:50%;
+    transform:translate(-50%,-50%);
+    background: linear-gradient(160deg,#fff6da,#ffd98c); color:#6b3410;
+    border:2.5px solid #e9a13b; font-size:27px; font-weight:800; font-family:inherit;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    box-shadow:0 4px 10px rgba(0,0,0,.3), inset 0 2px 4px rgba(255,255,255,.8);
+    transition: transform .12s, background .12s, color .12s; touch-action:none; padding:0;
+  }
+  .letter.sel {
+    background: linear-gradient(160deg,#ff9d5c,#f2600c); color:#fff;
+    border-color:#ffd9a0; transform:translate(-50%,-50%) scale(1.14);
+    box-shadow:0 6px 16px rgba(242,96,12,.55);
+  }
+  /* ---- actions ---- */
+  .rowBtns { display:flex; gap:7px; }
+  .rowBtns button { flex:1; padding:11px 4px; font-size:14px; }
+  #btnSubmit { background:#22b573; border-color:#7be0ae; flex:1.25; font-size:16px; }
+  #btnHint { background: rgba(255,200,60,.28); border-color:#ffd76a; }
+  #bonusBar {
+    text-align:center; font-size:13.5px; font-weight:800; padding:8px; border-radius:12px;
+    background: rgba(255,255,255,.13); border:1px solid rgba(255,255,255,.25); cursor:pointer;
+  }
+  /* ---- cross promo ---- */
+  #promo { display:flex; gap:8px; flex-wrap:wrap; }
+  #promo a {
+    flex:1 1 30%; text-align:center; text-decoration:none; color:#fff7ea; font-weight:800; font-size:12.5px;
+    background: rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.3);
+    border-radius:12px; padding:8px 4px; white-space:nowrap;
+  }
+  #hint { text-align:center; font-size:11.5px; opacity:.85; font-weight:600; }
+  /* ---- modals ---- */
+  .modal {
+    position:fixed; inset:0; background:rgba(24,8,36,.7); display:none;
+    align-items:center; justify-content:center; z-index:10; padding:18px;
+  }
+  .modal.show { display:flex; }
+  .modalBox {
+    background: linear-gradient(165deg,#4a2064,#8a3b63); border:2px solid rgba(255,255,255,.35);
+    border-radius:22px; padding:24px 20px; text-align:center; max-width:360px; width:100%;
+    box-shadow:0 18px 50px rgba(0,0,0,.5); max-height:88%; overflow-y:auto;
+  }
+  .modalBox h1 { font-size:27px; margin-bottom:4px; }
+  .modalBox .big-emoji { font-size:42px; }
+  .modalBox p { opacity:.92; font-weight:700; margin:4px 0 14px; font-size:14.5px; }
+  .modalBox .row { display:flex; gap:8px; }
+  .modalBox .row button { flex:1; padding:12px; font-size:16px; border-radius:14px; }
+  #btnNext, #btnDailyGo { background:#ff5d8f; border-color:#ffb3c9; }
+  #mapGrid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:12px 0; }
+  #mapGrid button { padding:11px 0; font-size:16px; border-radius:12px; }
+  #mapGrid button.done { background:#22b573; border-color:#7be0ae; }
+  #mapGrid button.cur { outline:3px solid #ffd76a; }
+  #mapGrid button:disabled { opacity:.35; }
+  .bonusWord {
+    display:inline-block; margin:3px; padding:5px 12px; border-radius:999px;
+    background: rgba(255,217,140,.2); border:1px solid rgba(255,217,140,.5); font-weight:800;
+  }
+  #toast {
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+    background:rgba(0,0,0,.82); color:#fff; font-weight:700; font-size:14px;
+    padding:9px 16px; border-radius:999px; opacity:0; pointer-events:none; transition:.25s; z-index:30;
+    max-width:92%; text-align:center;
+  }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div class="card" id="lvlCard">
+      <div class="label">چرخ واژه 🛞</div>
+      <div id="lvl">مرحله ۱</div>
+      <div id="lvlSub">۰ از ۰ واژه</div>
+    </div>
+    <div class="card" id="coinCard">
+      <div class="label">سکه</div>
+      <div id="coins">🪙 ۰</div>
+    </div>
+    <div class="btns">
+      <button id="btnMute" title="صدا">🔊</button>
+      <button id="btnMap" title="نقشه مراحل">🗺️ نقشه</button>
+    </div>
+  </div>
+
+  <div id="slots"></div>
+  <div id="current"><span class="ph">حرف‌ها را به ترتیب بچین…</span></div>
+
+  <div id="wheelWrap">
+    <div id="ring"></div>
+    <div id="hub"><div class="big">🛞</div><div class="small" id="hubTxt">چرخ واژه</div></div>
+  </div>
+
+  <div class="rowBtns">
+    <button id="btnBack">⌫ پاک</button>
+    <button id="btnClear">✕ خالی</button>
+    <button id="btnShuffle">🔀 هم‌زدن</button>
+    <button id="btnHint">💡 راهنما</button>
+    <button id="btnSubmit">✓ ثبت</button>
+  </div>
+
+  <div id="bonusBar">🧺 واژه‌های اضافی: ۰</div>
+
+  <div id="promo">
+    <a href="https://t.me/GiantHeartsMergeBot/game" target="_blank" rel="noopener">🐶 ادغام قلب‌ها</a>
+    <a href="https://t.me/GiantHeartsBlocksBot/game" target="_blank" rel="noopener">🧩 بلوک قلب‌ها</a>
+    <a href="https://t.me/GiantHeartsSortBot/game" target="_blank" rel="noopener">🧪 مرتب‌سازی</a>
+    <a href="https://www.youtube.com/@GiantHeartsAnimals" target="_blank" rel="noopener">▶️ یوتیوب قلب‌های غول‌پیکر</a>
+  </div>
+  <div id="hint">روی حرف‌ها بزن یا انگشتت را رویشان بکش تا واژه بسازی 💛</div>
+</div>
+
+<div class="modal" id="winModal">
+  <div class="modalBox">
+    <div class="big-emoji">🎉</div>
+    <h1 id="winTitle">آفرین!</h1>
+    <p id="winStats"></p>
+    <div class="row">
+      <button id="btnNext">▶ مرحله بعد</button>
+      <button id="btnWinMap">🗺️ نقشه</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="mapModal">
+  <div class="modalBox">
+    <div class="big-emoji">🗺️</div>
+    <h1>نقشه مراحل</h1>
+    <p id="mapSub"></p>
+    <div class="row"><button id="btnDailyGo">📅 چالش امروز</button></div>
+    <div id="mapGrid"></div>
+    <div class="row"><button id="btnMapClose">بستن</button></div>
+  </div>
+</div>
+
+<div class="modal" id="bonusModal">
+  <div class="modalBox">
+    <div class="big-emoji">🧺</div>
+    <h1>واژه‌های اضافی</h1>
+    <p>این واژه‌ها جزو جواب‌های مرحله نیستند، ولی با حروف همین چرخ ساخته می‌شوند و سکه می‌گیری!</p>
+    <div id="bonusList"></div>
+    <div class="row" style="margin-top:14px"><button id="btnBonusClose">بستن</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================
+   چرخ واژه (Word Wheel) — an original Persian letter-wheel
+   word puzzle. All levels, art and the word list are original
+   to this game. Levels are precomputed from the embedded
+   dictionary: every slot word is a real dictionary word that
+   can be built from the wheel's letter multiset.
+   ========================================================= */
+
+/* ---------- Telegram Mini App (guarded) ---------- */
+try {
+  if (window.Telegram && window.Telegram.WebApp) {
+    const tg = window.Telegram.WebApp;
+    tg.ready(); tg.expand();
+    if (tg.setHeaderColor) tg.setHeaderColor("#2d1b4e");
+    if (tg.setBackgroundColor) tg.setBackgroundColor("#2d1b4e");
+  }
+} catch (e) { /* not in Telegram — fine */ }
+
+/* ---------- AdsGram (guarded; game works fully without ads) ---------- */
+const ADS_INT_ID = "int-61717";   // TODO: replace with this game's Interstitial Block ID
+const ADS_REW_ID = "61718";       // TODO: replace with this game's Rewarded Block ID
+const _adsCache = {};
+let lastInterstitial = 0;
+function adsCtl(blockId) {
+  if (_adsCache[blockId]) return _adsCache[blockId];
+  try { if (window.Adsgram) _adsCache[blockId] = window.Adsgram.init({ blockId }); } catch (e) {}
+  return _adsCache[blockId] || null;
+}
+function showInterstitial() {
+  const now = Date.now();
+  if (now - lastInterstitial < 90000) return Promise.resolve(false);
+  const ctl = adsCtl(ADS_INT_ID);
+  if (!ctl) return Promise.resolve(false);
+  lastInterstitial = now;
+  return ctl.show().then(() => true).catch(() => false);
+}
+function showRewarded() {
+  const ctl = adsCtl(ADS_REW_ID);
+  if (!ctl) return Promise.resolve(false);
+  return ctl.show().then(() => true).catch(() => false);
+}
+
+/* ---------- Data (dictionary + levels; generated & verified) ---------- */
+const DICT = ["آب","هوا","باد","باران","برف","ابر","ماه","خورشید","ستاره","زمین","آسمان","دریا","کوه","جنگل","درخت","برگ","سنگ","خاک","شن","موج","ساحل","رود","چشمه","غار","دشت","صحرا","جزیره","آتش","دود","نور","سایه","بهار","تابستان","پاییز","زمستان","صبح","شب","روز","غروب","طلوع","سرما","گرما","طوفان","برق","مه","یخ","تگرگ","قطره","بخار","دره","آبشار","رودخانه","دریاچه","اقیانوس","مهتاب","آفتاب","سحر","ظهر","عصر","فصل","حباب","رطوبت","خشکی","سیل","شعله","خاکستر","زغال","هیزم","بوته","چمن","سبزه","باتلاق","مرداب","قله","دامنه","صخره","غبار","کولاک","بهمن","گردباد","سونامی","آتشفشان","کسوف","خسوف","شهاب","کهکشان","سیاره","قمر","مدار","فضا","فضانورد","ماهواره","تلسکوپ","موشک","سگ","گربه","اسب","گاو","گوسفند","بز","مرغ","خروس","اردک","شیر","ببر","خرس","گرگ","روباه","خرگوش","موش","فیل","زرافه","میمون","مار","ماهی","پرنده","عقاب","جغد","کلاغ","کبوتر","پروانه","زنبور","مورچه","عنکبوت","قورباغه","شتر","الاغ","قاطر","گورخر","آهو","گوزن","پلنگ","کفتار","شغال","سنجاب","خارپشت","جوجه","کرم","حلزون","صدف","میگو","خرچنگ","نهنگ","کوسه","دلفین","خفاش","طاووس","بلبل","قناری","طوطی","دارکوب","لکلک","هدهد","چکاوک","بوقلمون","غاز","قو","پلیکان","شترمرغ","کرگدن","بوفالو","گوریل","پاندا","کوالا","بچه","گوساله","بره","توله","سال","هفته","دقیقه","ثانیه","امروز","فردا","دیروز","امشب","امسال","وقت","زمان","لحظه","دیر","زود","همیشه","هرگز","گاهی","اغلب","ابتدا","انتها","آغاز","پایان","گذشته","آینده","حال","قبل","بعد","سپس","ناگهان","امروزه","پارسال","فرداشب","دیشب","پریشب","سحرگاه","نیمروز","غروبگاه","شامگاه","بامداد","پگاه","چاشت","عصرگاه","نان","برنج","گوشت","پنیر","کره","ماست","دوغ","عسل","شکر","نمک","فلفل","روغن","سرکه","چای","قهوه","سیب","گلابی","هلو","زردآلو","گیلاس","آلبالو","انگور","هندوانه","خربزه","طالبی","انار","پرتقال","لیمو","موز","خرما","انجیر","توت","خیار","گوجه","پیاز","سیر","هویج","کاهو","سبزی","عدس","لوبیا","نخود","ذرت","گندم","جو","آرد","کیک","شیرینی","شکلات","بستنی","سوپ","آش","کباب","پلو","دلمه","کوکو","املت","مربا","ترشی","زیتون","گردو","بادام","پسته","فندق","کشمش","نارگیل","آناناس","کیوی","انبه","خرمالو","ازگیل","شلیل","آلوچه","تمشک","شاهتوت","زالزالک","مویز","لواشک","سوهان","باقلوا","حلوا","فرنی","کاچی","آبگوشت","قیمه","قورمه","فسنجان","زرشک","سماق","دارچین","زعفران","گلاب","زنجبیل","نعنا","ریحان","جعفری","شوید","تره","اسفناج","کرفس","بادمجان","کدو","باقلا","ماش","لپه","بلغور","سبوس","خامه","سرشیر","کشک","آبلیمو","آبغوره","خردل","کنجد","خشخاش","زیره","رازیانه","گلپر","آویشن","پونه","بابونه","سنگک","بربری","تافتون","لواش","غذا","صبحانه","ناهار","شام","مهمانی","جشن","عروسی","تولد","هدیه","خوراک","خوراکی","نوشیدنی","آبمیوه","شربت","لیموناد","نوشابه","دوغاب","سر","مو","چشم","گوش","بینی","دهان","دندان","زبان","لب","صورت","گردن","شانه","دست","بازو","انگشت","پا","زانو","قلب","خون","پوست","استخوان","مغز","جگر","ریه","شکم","پشت","سینه","ناخن","ابرو","مژه","چانه","پیشانی","گونه","آرنج","ران","ساق","عضله","رگ","عصب","کبد","کلیه","معده","روده","طحال","مثانه","جمجمه","دنده","مهره","غضروف","رباط","نبض","عرق","اشک","مردمک","قرنیه","شبکیه","پلک","ناف","کمر","باسن","پاشنه","قوزک","ساعد","خال","جوش","تاول","زخم","کبودی","انگشتان","خانه","اتاق","پنجره","دیوار","سقف","پله","حمام","تخت","میز","صندلی","مبل","فرش","پرده","چراغ","آینه","ساعت","کلید","قفل","چاقو","قاشق","چنگال","بشقاب","لیوان","کاسه","قابلمه","سینی","حوله","صابون","شامپو","مسواک","کیف","کفش","لباس","پیراهن","شلوار","دامن","کلاه","دستکش","جوراب","پالتو","روسری","کمربند","دکمه","زیپ","سوزن","قیچی","چسب","کاغذ","کتاب","دفتر","مداد","خودکار","پاککن","تلفن","رادیو","یخچال","اجاق","ماشین","دوچرخه","چمدان","سبد","جارو","سطل","نردبان","چکش","میخ","اره","بیل","کلنگ","طناب","شمع","کبریت","فندک","باتری","لامپ","پریز","سیم","تشک","بالش","پتو","ملحفه","رختخواب","کمد","قفسه","گلدان","تابلو","نقشه","تقویم","جوهر","ترازو","آچار","پیچ","واشر","انبردست","متر","خطکش","گونیا","پرگار","عینک","زنگ","سوت","طبل","گیتار","پیانو","ویولن","سنتور","تار","سهتار","دف","نی","فلوت","ارگ","دوربین","سهپایه","چتر","عصا","ویلچر","کالسکه","گهواره","تاب","سرسره","الاکلنگ","توپ","راکت","تور","دروازه","مدال","جام","تاج","شمشیر","نیزه","سپر","کلاهخود","زره","تیر","کمان","تفنگ","فشنگ","نارنجک","تانک","هواپیما","کشتی","قایق","قطار","اتوبوس","مترو","تاکسی","کامیون","وانت","موتور","تراکتور","در","اتوبان","جاده","خیابان","کوچه","پل","تونل","معلم","دکتر","پرستار","مهندس","کشاورز","نجار","خیاط","آشپز","راننده","پلیس","سرباز","قاضی","وکیل","کارگر","بنا","نقاش","شاعر","نویسنده","خواننده","بازیگر","ورزشکار","ملوان","خلبان","چوپان","باغبان","نانوا","قصاب","آرایشگر","فروشنده","خریدار","دانشجو","استاد","مدیر","کارمند","حسابدار","منشی","نگهبان","رفتگر","پستچی","برقکار","لولهکش","مکانیک","جوشکار","تراشکار","کفاش","بقال","عطار","زرگر","مسگر","آهنگر","شکارچی","ماهیگیر","دامدار","خادم","گارسون","باربر","دربان","سرایدار","مستخدم","کارفرما","شاگرد","نصاب","بازرس","مامور","دادستان","بازپرس","کارشناس","مشاور","مترجم","خبرنگار","عکاس","مجری","گوینده","دوبلور","طراح","گرافیست","ناشر","کتابدار","راهنما","دیپلمات","سفیر","وزیر","نماینده","شهردار","بخشدار","دهیار","کدخدا","پاسبان","آتشنشان","شغل","حرفه","کار","کسب","پیشه","شهر","روستا","میدان","بازار","مغازه","مدرسه","دانشگاه","مسجد","کلیسا","پارک","باغ","مزرعه","کارخانه","اداره","بانک","هتل","رستوران","سینما","موزه","زندان","قصر","قلعه","برج","ایستگاه","فرودگاه","بندر","مطب","نانوایی","قنادی","قصابی","فروشگاه","پاساژ","زورخانه","ورزشگاه","سالن","باشگاه","استخر","سونا","خیاطی","کارواش","جایگاه","پارکینگ","ترمینال","گمرک","سفارت","شهرداری","پادگان","خوابگاه","پانسیون","کمپ","کلبه","ویلا","مجتمع","شهرک","محله","منطقه","ناحیه","استان","شهرستان","بخش","دهستان","آبادی","مکان","جای","محل","موقعیت","نشانی","آدرس","رفتن","آمدن","خوردن","نوشیدن","دیدن","شنیدن","گفتن","نشستن","ایستادن","خوابیدن","دویدن","پریدن","خندیدن","گریستن","خواندن","نوشتن","خریدن","فروختن","پختن","شستن","پوشیدن","آوردن","بردن","دادن","گرفتن","زدن","کشتن","ساختن","شکستن","بستن","جستن","یافتن","دانستن","توانستن","خواستن","ماندن","مردن","انداختن","برداشتن","گذاشتن","شمردن","پرسیدن","فهمیدن","رسیدن","افتادن","سوختن","پاشیدن","چیدن","کاشتن","بافتن","دوختن","راندن","تاختن","گریختن","جنگیدن","رقصیدن","پرداختن","نواختن","شناختن","باختن","اندوختن","آموختن","افروختن","پیمودن","آزمودن","فرمودن","نمودن","ستودن","سرودن","آسودن","آلودن","ربودن","گشودن","افزودن","کاستن","آراستن","پیراستن","گسستن","پیوستن","رستن","گذشتن","گشتن","برگشتن","داشتن","پنداشتن","انگاشتن","نگاشتن","سپردن","پژمردن","فشردن","گستردن","آزردن","افکندن","چرخیدن","گردیدن","لغزیدن","لرزیدن","ترسیدن","ورزیدن","تپیدن","جهیدن","چشیدن","کوشیدن","جوشیدن","کشیدن","پسندیدن","گزیدن","آفریدن","بریدن","دریدن","آرمیدن","غلتیدن","نالیدن","بالیدن","مالیدن","ساییدن","تابیدن","پیچیدن","رنجیدن","سنجیدن","گنجیدن","آویختن","آمیختن","ریختن","انگیختن","افشاندن","نشاندن","چسباندن","ترساندن","رساندن","تکاندن","چرخاندن","گرداندن","سوزاندن","پوشاندن","چشاندن","بلعیدن","جویدن","بوییدن","روییدن","کردن","شدن","بودن","بزرگ","کوچک","بلند","کوتاه","پهن","باریک","سنگین","سبک","سخت","نرم","سرد","گرم","داغ","خنک","تازه","کهنه","قدیمی","جدید","جوان","پیر","خوب","بد","زیبا","زشت","قشنگ","تمیز","کثیف","روشن","تاریک","سریع","آهسته","قوی","ضعیف","شجاع","ترسو","مهربان","عصبانی","خوشحال","ناراحت","خسته","گرسنه","تشنه","بیمار","سالم","فقیر","ارزان","گران","ساده","دشوار","آسان","مهم","خطرناک","پر","خالی","کامل","تنها","شلوغ","آرام","عمیق","سطحی","تیز","کند","چاق","لاغر","شیرین","تلخ","ترش","شور","تند","ملایم","صاف","خشن","خشک","خیس","ناهموار","زبر","لطیف","ظریف","ضخیم","نازک","کلفت","دراز","چروک","براق","مات","شفاف","کدر","غلیظ","رقیق","سفت","شل","محکم","سست","شکننده","چسبنده","لیز","صیقلی","زمخت","برنده","گرد","مربع","مثلث","مستطیل","بیضی","کروی","کج","راست","خمیده","موجدار","راهراه","خالدار","گلدار","پررنگ","کمرنگ","تیره","زنده","مرده","وحشی","اهلی","خانگی","بیابانی","دریایی","جنگلی","صحرایی","آزاد","اسیر","قرمز","آبی","سبز","زرد","سفید","سیاه","نارنجی","بنفش","صورتی","خاکستری","طلایی","فیروزه","لاجوردی","عنابی","زرشکی","یشمی","صدفی","خردلی","زیتونی","یاسی","گلبهی","هلویی","شیری","دودی","خاکی","آسمانی","نیلی","ارغوانی","شرابی","عسلی","شکلاتی","وانیلی","لیمویی","پرتقالی","رنگ","رنگی","رنگارنگ","یک","دو","سه","چهار","پنج","شش","هفت","هشت","نه","ده","یازده","دوازده","سیزده","چهارده","پانزده","شانزده","هفده","هجده","نوزده","بیست","چهل","پنجاه","شصت","هفتاد","هشتاد","نود","صد","هزار","میلیون","میلیارد","صفر","نیم","ربع","اول","دوم","سوم","چهارم","پنجم","ششم","هفتم","هشتم","نهم","دهم","چند","هیچ","همه","مرد","زن","دختر","پسر","پدر","مادر","برادر","خواهر","پدربزرگ","عمو","عمه","خاله","دایی","نوه","شوهر","همسر","کودک","نوزاد","پیرمرد","پیرزن","مهمان","همسایه","رفیق","آشنا","غریبه","دوست","دشمن","انسان","مردم","ملت","شخص","نفر","خانم","عروس","داماد","نامزد","بیوه","یتیم","دوقلو","فرزند","شیرخوار","نوجوان","میانسال","کهنسال","سالمند","بزرگسال","خردسال","خانواده","فامیل","زندگی","مرگ","دنیا","جهان","پول","قیمت","خرید","فروش","سفر","مسیر","راه","درس","امتحان","نمره","کلاس","علم","هنر","فکر","ذهن","دل","جان","روح","خواب","رویا","امید","ترس","شادی","غم","عشق","نفرت","صلح","جنگ","قدرت","آزادی","عدالت","قانون","دولت","کشور","فرهنگ","تاریخ","شروع","وسط","بالا","پایین","جلو","عقب","داخل","خارج","نزدیک","دور","اینجا","آنجا","کجا","چرا","چگونه","چطور","اسم","سوال","جواب","حرف","کلمه","جمله","داستان","شعر","آواز","موسیقی","فیلم","بازی","ورزش","فوتبال","شنا","صدا","مزه","حس","درد","دارو","درمان","قرص","سکه","اسکناس","چک","کارت","حساب","وام","سود","ضرر","مالیات","اجاره","نامه","پاکت","تمبر","پست","بسته","شماره","خبر","اخبار","روزنامه","مجله","اینترنت","موبایل","پیام","پیامک","ایمیل","سایت","وبلاگ","شبکه","ویدیو","کلیپ","پادکست","رمان","قصه","حکایت","چیستان","معما","راز","جوک","لطیفه","خنده","گریه","فریاد","ناله","بوق","ترافیک","تصادف","زلزله","رعد","خبره","من","تو","او","ما","شما","آن","این","آنها","خود","خویش","دیگر","همان","همین","چنین","چنان","هنوز","شاید","حتما","البته","مثلا","یعنی","اما","ولی","چون","اگر","مگر","از","به","با","بی","بر","جز","نیز","فقط","بسیار","خیلی","زیاد","اندک","فراوان","هر","کس","کسی","چیزی","جایی","وقتی","اکنون","الان","حساسیت","آسم","دیابت","فشارخون","سکته","سرطان","عفونت","التهاب","شکستگی","دررفتگی","کوفتگی","سوختگی","بریدگی","نیش","خارش","کهیر","آبله","سرخک","مخملک","حصبه","وبا","طاعون","جذام","سل","ایدز","کرونا","واکسن","آمپول","سرم","پانسمان","بخیه","سمعک","بیماری","مریضی","علاج","معالجه","جراحی","عمل","خونریزی","مشق","تکلیف","آزمون","کنکور","معدل","کارنامه","تخته","ماژیک","جزوه","کوله","جامدادی","تراش","نقاله","اطلس","ریاضی","فیزیک","شیمی","زیست","نجوم","هندسه","جبر","آمار","ادبیات","جغرافیا","عربی","انگلیسی","فارسی","دینی","نقاشی","خطاطی","سفالگری","نجاری","آشپزی","خشمگین","نگران","مضطرب","هیجان","متعجب","حیران","سرگردان","گیج","هوشیار","کوفته","فرسوده","شاداب","سرحال","بیحال","کسالت","نشاط","ذوق","شوق","اشتیاق","علاقه","محبت","مهربانی","دوستی","دشمنی","حسادت","حسود","بخیل","خسیس","سخاوت","بخشنده","مغرور","فروتن","متواضع","صبور","عجول","نترس","دلیر","بزدل","محتاط","بیباک","جسور","گستاخ","مودب","بیادب","بداخلاق","خوشرو","اخمو","خندان","گریان","عبوس","بشاش","شاد","غمگین","افسرده","دلتنگ","خجالتی","اجتماعی"];
+const LEVELS = [{"letters":["ش","ه","ر","ک"],"words":["شهر","شکر","شهرک"]},{"letters":["آ","د","ر","س"],"words":["آرد","درس","آدرس"]},{"letters":["ک","ا","ر","ت"],"words":["تار","کار","کارت"]},{"letters":["م","ا","د","ر"],"words":["مار","مرد","مادر"]},{"letters":["غ","ب","ا","ر"],"words":["ابر","باغ","غبار"]},{"letters":["س","ر","م","ا"],"words":["اسم","سرم","سرما"]},{"letters":["م","ر","د","ه"],"words":["دره","دهم","مرده"]},{"letters":["گ","ر","م","ا"],"words":["ارگ","اگر","مار","مرگ","مگر","گرما"]},{"letters":["ن","خ","و","د"],"words":["خود","خون","نخود"]},{"letters":["د","و","س","ت"],"words":["دست","سوت","دوست"]},{"letters":["چ","ه","ا","ر"],"words":["اره","راه","چهار"]},{"letters":["م","س","گ","ر"],"words":["سرم","مرگ","مگر","مسگر"]},{"letters":["ز","ن","د","گ","ی"],"words":["زدن","زنگ","نیز","زندگی"]},{"letters":["ر","ا","د","ی","و"],"words":["دور","دیر","رود","دارو","دریا","رویا","رادیو"]},{"letters":["س","پ","ر","د","ن"],"words":["درس","سرد","سپر","پدر","سپردن"]},{"letters":["ش","ا","گ","ر","د"],"words":["ارگ","اگر","شاد","شاگرد"]},{"letters":["خ","و","ر","د","ن"],"words":["خود","خون","دور","رود","نود","نور","خوردن"]},{"letters":["س","ه","ت","ا","ر"],"words":["اره","تار","ترس","تره","راه","راست","سهتار"]},{"letters":["و","ب","ل","ا","گ"],"words":["اول","وبا","گاو","وبلاگ"]},{"letters":["م","ر","د","ا","ب"],"words":["ابر","باد","مار","مرد","مادر","مدار","مرداب"]},{"letters":["ا","ن","ج","ی","ر"],"words":["این","جان","جای","ران","نجار","انجیر"]},{"letters":["پ","ر","ی","د","ن"],"words":["دیر","پدر","پیر","پریدن"]},{"letters":["ا","س","ت","خ","ر"],"words":["تار","ترس","خرس","سخت","استخر"]},{"letters":["پ","ی","ر","ز","ن"],"words":["زیپ","نیز","پیر","پریز","پیرزن"]},{"letters":["ش","ا","م","پ","و"],"words":["شام","شما","ماش","موش","شامپو"]},{"letters":["ک","ر","گ","د","ن"],"words":["رنگ","کدر","کند","گرد","کردن","کرگدن"]},{"letters":["ت","ا","ب","ل","و"],"words":["اول","تاب","وبا","تابلو"]},{"letters":["ت","ا","ر","ی","ک"],"words":["تار","تیر","کار","راکت","تاریک"]},{"letters":["ک","ا","ش","ت","ن"],"words":["اشک","تشک","شنا","تانک","کاشتن"]},{"letters":["ج","و","ر","ا","ب"],"words":["ابر","برج","جبر","وبا","ابرو","جارو","جوراب"]},{"letters":["د","و","چ","ر","خ","ه"],"words":["خود","دره","دور","رود","دوچرخه"]},{"letters":["ل","ر","ز","ی","د","ن"],"words":["دیر","زدن","زرد","لیز","نیز","لرزیدن"]},{"letters":["ف","ر","س","و","د","ه"],"words":["درس","دره","دور","رود","سرد","سفر","سود","فرسوده"]},{"letters":["آ","ب","ل","ی","م","و"],"words":["آبی","بیل","مبل","ولی","آبلیمو"]},{"letters":["ص","ب","ح","ا","ن","ه"],"words":["بنا","صبح","انبه","حصبه","صبحانه"]},{"letters":["گ","ر","ی","س","ت","ن"],"words":["ترس","تیر","رنگ","سنگ","سیر","رستن","رنگی","گریستن"]},{"letters":["ک","م","ر","ب","ن","د"],"words":["مرد","نرم","کبد","کدر","کمد","کند","بردن","مردن","کمربند"]},{"letters":["س","ح","ر","گ","ا","ه"],"words":["اره","ارگ","اگر","راه","سحرگاه"]},{"letters":["خ","و","ا","س","ت","ن"],"words":["خون","سخت","سوت","سونا","وانت","ساختن","سخاوت","خواستن"]},{"letters":["س","و","ن","ا","م","ی"],"words":["اسم","این","سوم","سیم","نیم","وام","سونا","سونامی"]},{"letters":["س","ا","ل","م","ن","د"],"words":["اسم","سال","دامن","سالم","سالن","سالمند"]},{"letters":["خ","ر","م","ا","ل","و"],"words":["اول","خال","مار","وام","اخمو","خرمالو"]},{"letters":["م","ا","ل","ی","د","ن"],"words":["این","نیم","امید","دامن","دنیا","مدال","مالیدن"]},{"letters":["م","ع","ا","ل","ج","ه"],"words":["جام","علم","عمل","عمه","ماه","جمله","علاج","معالجه"]},{"letters":["ش","ک","ا","ر","چ","ی"],"words":["اشک","شکر","شیر","چای","چرا","چکش","کار","شکارچی"]},{"letters":["ف","ر","و","خ","ت","ن"],"words":["تور","خون","نفر","نور","رفتن","نفرت","فروختن"]},{"letters":["ت","ل","س","ک","و","پ"],"words":["توپ","سوت","سوپ","پتو","پست","پلو","پلک","پول","تلسکوپ"]},{"letters":["ف","ر","د","ا","ش","ب"],"words":["ابر","باد","برف","شاد","فرش","فرداشب"]},{"letters":["ک","ل","ا","ه","خ","و","د"],"words":["اول","خال","خود","هلو","کدو","خاله","داخل","کلاه","کلاهخود"]},{"letters":["ا","ف","ر","و","خ","ت","ن"],"words":["تار","تور","ران","ناف","نور","رفتن","وانت","فروتن","افروختن"]},{"letters":["س","ف","ا","ل","گ","ر","ی"],"words":["ارگ","اگر","سال","سیر","سیل","فیل","سفیر","فارسی","سفالگری"]},{"letters":["پ","ر","د","ا","خ","ت","ن"],"words":["تار","تند","ران","پدر","دختر","درخت","پرداختن"]},{"letters":["ز","و","ر","خ","ا","ن","ه"],"words":["اره","راز","راه","زره","نوه","هوا","زانو","هنوز","زورخانه"]},{"letters":["غ","ر","و","ب","گ","ا","ه"],"words":["ابر","ارگ","باغ","برگ","هوا","گاو","بهار","غروب","غروبگاه"]},{"letters":["ب","ر","د","ا","ش","ت","ن"],"words":["ابر","بنا","ترش","دشت","شتر","شنا","تراش","ناشر","برداشتن"]},{"letters":["ق","و","ر","ب","ا","غ","ه"],"words":["ابر","باغ","بره","راه","هوا","ابرو","بهار","غروب","قورباغه"]},{"letters":["ر","و","د","خ","ا","ن","ه"],"words":["اره","خون","ران","رود","نوه","خانه","دارو","نخود","رودخانه"]},{"letters":["خ","ا","ک","س","ت","ر","ی"],"words":["تار","تیر","خیس","کار","خاکی","راکت","کارت","تاریک","خاکستری"]},{"letters":["ر","و","ز","ن","ا","م","ه"],"words":["اره","راه","ماه","نرم","هنر","رمان","نامه","همان","روزنامه"]},{"letters":["خ","و","ا","ب","ی","د","ن"],"words":["این","باد","خوب","خود","نود","وبا","خواب","دنیا","خوابیدن"]}];
+const DICT_SET = new Set(DICT);
+
+/* ---------- Core logic (pure; unit-tested) ---------- */
+function letterCounts(str) {
+  const c = {};
+  for (const ch of str) c[ch] = (c[ch] || 0) + 1;
+  return c;
+}
+function formableFrom(word, lettersArr) {
+  const have = letterCounts(lettersArr.join(""));
+  const need = letterCounts(word);
+  for (const ch in need) if ((have[ch] || 0) < need[ch]) return false;
+  return true;
+}
+function isDictWord(w) { return DICT_SET.has(w); }
+function dailyIndexFor(date) {
+  // deterministic pick: whole days since epoch modulo level count
+  const days = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
+  return ((days % LEVELS.length) + LEVELS.length) % LEVELS.length;
+}
+function todayKey(date) {
+  return date.getFullYear() + "-" + (date.getMonth() + 1) + "-" + date.getDate();
+}
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function shuffled(arr, rng) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ---------- Save / state ---------- */
+const SAVE_KEY = "ww_save_v1";
+let save;
+try { save = JSON.parse(localStorage.getItem(SAVE_KEY)) || null; } catch (e) { save = null; }
+if (!save || typeof save !== "object") save = { coins: 60, unlocked: 0, levels: {}, daily: {}, muted: false };
+if (typeof save.coins !== "number") save.coins = 60;
+if (typeof save.unlocked !== "number") save.unlocked = 0;
+if (!save.levels) save.levels = {};
+if (!save.daily) save.daily = {};
+function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+function levelState(idx) {
+  if (!save.levels[idx]) save.levels[idx] = { found: [], bonus: [], hints: {}, done: false };
+  return save.levels[idx];
+}
+
+let cur = 0;            // current level index
+let mode = "normal";    // "normal" | "daily"
+let wheel = [];         // letters in display order
+let selection = [];     // indexes into wheel, in tap order
+let dragging = false, dragMoved = false;
+let toastTimer = 0;
+
+const elSlots = document.getElementById("slots");
+const elCurrent = document.getElementById("current");
+const elWheel = document.getElementById("wheelWrap");
+const elLvl = document.getElementById("lvl");
+const elLvlSub = document.getElementById("lvlSub");
+const elCoins = document.getElementById("coins");
+const elHubTxt = document.getElementById("hubTxt");
+const elBonusBar = document.getElementById("bonusBar");
+const elToast = document.getElementById("toast");
+const elWinModal = document.getElementById("winModal");
+const elMapModal = document.getElementById("mapModal");
+const elBonusModal = document.getElementById("bonusModal");
+
+/* ---------- Audio (tiny WebAudio UI sounds) ---------- */
+let AC = null;
+function audio() {
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } }
+  if (AC && AC.state === "suspended") AC.resume();
+  return AC;
+}
+function blip(freq, dur, vol, type) {
+  if (save.muted) return; const ac = audio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+  o.type = type || "triangle"; o.frequency.setValueAtTime(freq, t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(40, freq * 0.55), t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+const sfxPick  = () => blip(620, 0.05, 0.07, "sine");
+const sfxGood  = () => { blip(660, 0.09, 0.11, "sine"); setTimeout(() => blip(880, 0.12, 0.11, "sine"), 70); };
+const sfxBonus = () => { [523, 659, 784].forEach((f, i) => setTimeout(() => blip(f, 0.1, 0.1, "sine"), i * 55)); };
+const sfxBad   = () => blip(160, 0.16, 0.1, "sawtooth");
+const sfxWin   = () => { [523, 659, 784, 1046, 1318].forEach((f, i) => setTimeout(() => blip(f, 0.2, 0.13), i * 95)); };
+
+/* ---------- Rendering ---------- */
+function faNum(n) { return String(n).replace(/\d/g, d => "۰۱۲۳۴۵۶۷۸۹"[+d]); }
+function curWord() { return selection.map(i => wheel[i]).join(""); }
+function renderHud() {
+  elLvl.textContent = mode === "daily" ? "📅 چالش امروز" : "مرحله " + faNum(cur + 1);
+  const st = levelState(cur), total = LEVELS[cur].words.length;
+  elLvlSub.textContent = faNum(st.found.length) + " از " + faNum(total) + " واژه";
+  elCoins.textContent = "🪙 " + faNum(save.coins);
+  elHubTxt.textContent = faNum(st.found.length) + "/" + faNum(total);
+  elBonusBar.textContent = "🧺 واژه‌های اضافی: " + faNum(st.bonus.length) + " (برای دیدن بزن)";
+}
+function renderSlots() {
+  const st = levelState(cur);
+  elSlots.innerHTML = "";
+  LEVELS[cur].words.forEach((w, wi) => {
+    const row = document.createElement("div");
+    row.className = "slotRow";
+    const found = st.found.includes(w);
+    const hints = st.hints[wi] || 0;
+    for (let i = 0; i < w.length; i++) {
+      const b = document.createElement("div");
+      b.className = "box";
+      if (found) { b.classList.add("filled"); b.textContent = w[i]; }
+      else if (i < hints) { b.classList.add("ghost"); b.textContent = w[i]; }
+      row.appendChild(b);
+    }
+    elSlots.appendChild(row);
+  });
+}
+function renderWheel() {
+  elWheel.querySelectorAll(".letter").forEach(n => n.remove());
+  const n = wheel.length;
+  const rect = elWheel.clientWidth || 330;
+  const R = rect * 0.365, cx = rect / 2, cy = rect / 2;
+  wheel.forEach((ch, i) => {
+    const ang = (-90 + i * 360 / n) * Math.PI / 180;
+    const b = document.createElement("button");
+    b.className = "letter" + (selection.includes(i) ? " sel" : "");
+    b.textContent = ch;
+    b.dataset.idx = i;
+    b.style.left = (cx + R * Math.cos(ang)) + "px";
+    b.style.top = (cy + R * Math.sin(ang)) + "px";
+    b.addEventListener("pointerdown", ev => { ev.preventDefault(); onLetterDown(i); });
+    elWheel.appendChild(b);
+  });
+}
+function renderCurrent() {
+  const w = curWord();
+  elCurrent.innerHTML = w ? "" : '<span class="ph">حرف‌ها را به ترتیب بچین…</span>';
+  if (w) elCurrent.textContent = w;
+}
+function render() { renderHud(); renderSlots(); renderWheel(); renderCurrent(); }
+
+/* ---------- Input: tap & drag letter selection ---------- */
+function onLetterDown(i) {
+  audio();
+  const at = selection.indexOf(i);
+  if (at >= 0) { // tapping a chosen letter removes it and everything after it
+    selection = selection.slice(0, at);
+    dragging = false; dragMoved = false;
+    sfxPick(); renderWheel(); renderCurrent(); return;
+  }
+  selection.push(i); dragging = true; dragMoved = false;
+  sfxPick(); renderWheel(); renderCurrent();
+}
+elWheel.addEventListener("pointermove", ev => {
+  if (!dragging) return;
+  const t = document.elementFromPoint(ev.clientX, ev.clientY);
+  if (!t || !t.classList || !t.classList.contains("letter")) return;
+  const i = +t.dataset.idx;
+  const at = selection.indexOf(i);
+  if (at === -1) { selection.push(i); dragMoved = true; sfxPick(); renderWheel(); renderCurrent(); }
+  else if (at === selection.length - 2) { selection.pop(); renderWheel(); renderCurrent(); } // drag back = undo last
+});
+window.addEventListener("pointerup", () => {
+  if (dragging && dragMoved && selection.length >= 2) submitWord();
+  dragging = false; dragMoved = false;
+});
+function backspace() { if (selection.length) { selection.pop(); sfxPick(); renderWheel(); renderCurrent(); } }
+function clearSel() { selection = []; renderWheel(); renderCurrent(); }
+function shuffleWheel() {
+  const rng = mulberry32(Date.now() % 2147483647);
+  wheel = shuffled(wheel, rng); selection = [];
+  sfxPick(); renderWheel(); renderCurrent();
+  toast("حرف‌ها هم خوردند 🔀");
+}
+
+/* ---------- Word submission ---------- */
+function submitWord() {
+  const w = curWord();
+  if (w.length < 2) { clearSel(); return; }
+  const L = LEVELS[cur], st = levelState(cur);
+  if (L.words.includes(w)) {
+    if (st.found.includes(w)) { toast("این واژه را قبلاً پیدا کردی! 🙂"); sfxBad(); }
+    else {
+      st.found.push(w);
+      save.coins += w.length * 5;
+      sfxGood(); toast("آفرین! +" + faNum(w.length * 5) + " سکه 🪙");
+      selection = []; persist(); render();
+      if (st.found.length === L.words.length) { completeLevel(); return; }
+      return;
+    }
+  } else if (isDictWord(w) && formableFrom(w, L.letters)) {
+    if (st.bonus.includes(w)) { toast("این واژه اضافی را قبلاً گرفتی! 🧺"); sfxBad(); }
+    else {
+      st.bonus.push(w);
+      save.coins += w.length * 2;
+      sfxBonus(); toast("واژه اضافی! +" + faNum(w.length * 2) + " سکه 🧺");
+      selection = []; persist(); render(); return;
+    }
+  } else {
+    sfxBad();
+    elCurrent.classList.remove("bad"); void elCurrent.offsetWidth; elCurrent.classList.add("bad");
+    toast("این واژه در فهرست واژه‌ها نیست 🙏");
+  }
+  selection = []; persist(); render();
+}
+function completeLevel() {
+  const st = levelState(cur);
+  let firstTime = !st.done;
+  if (firstTime) {
+    st.done = true;
+    save.coins += 20;
+    if (mode === "normal" && cur === save.unlocked && save.unlocked < LEVELS.length - 1) save.unlocked++;
+    if (mode === "daily") {
+      const k = todayKey(new Date());
+      if (!save.daily[k]) { save.daily[k] = true; save.coins += 30; }
+    }
+  }
+  persist(); render();
+  sfxWin();
+  const isDaily = mode === "daily";
+  document.getElementById("winTitle").textContent = isDaily ? "چالش امروز کامل شد! 📅" : "مرحله کامل شد! 🎉";
+  document.getElementById("winStats").textContent =
+    "واژه‌ها: " + faNum(LEVELS[cur].words.length) + " · اضافی: " + faNum(st.bonus.length) +
+    " · سکه‌های تو: " + faNum(save.coins) + (firstTime ? " (جایزه پایان مرحله هم گرفتی!)" : "");
+  document.getElementById("btnNext").style.display = (!isDaily && cur < LEVELS.length - 1) ? "" : "none";
+  const show = () => elWinModal.classList.add("show");
+  if ((cur + 1) % 3 === 0) showInterstitial().then(show); else show();
+  setTimeout(show, 6000);
+}
+
+/* ---------- Hint (coins, or a rewarded ad when coins are short) ---------- */
+const HINT_COST = 30;
+function hintTarget() {
+  const st = levelState(cur);
+  const open = LEVELS[cur].words.map((w, i) => [w, i]).filter(([w]) => !st.found.includes(w));
+  if (!open.length) return "done";
+  open.sort((a, b) => (st.hints[a[1]] || 0) - (st.hints[b[1]] || 0));
+  const [w, wi] = open[0];
+  if ((st.hints[wi] || 0) >= w.length) return "full";
+  return [w, wi];
+}
+function revealHint() {
+  const t = hintTarget();
+  if (t === "done") { toast("همه واژه‌ها پیدا شده‌اند! 🎉"); return false; }
+  if (t === "full") { toast("همه حرف‌های این واژه معلوم است؛ فقط باید بچینی‌اش! 💡"); return false; }
+  const [w, wi] = t, st = levelState(cur);
+  st.hints[wi] = (st.hints[wi] || 0) + 1;
+  persist(); render(); sfxBonus();
+  toast("یک حرف از یک واژه معلوم شد 💡");
+  return true;
+}
+function hint() {
+  const t = hintTarget();
+  if (t === "done" || t === "full") { revealHint(); return; } // toasts without charging
+  if (save.coins >= HINT_COST) {
+    save.coins -= HINT_COST; persist(); renderHud(); revealHint();
+  } else {
+    showRewarded().then(ok => {
+      if (ok) revealHint();
+      else toast("تبلیغ در دسترس نیست و سکه کافی نداری 🙏 (" + faNum(save.coins) + "/" + faNum(HINT_COST) + ")");
+    });
+  }
+}
+
+/* ---------- Level / map flow ---------- */
+function startLevel(idx, m) {
+  cur = idx; mode = m || "normal";
+  const rng = mulberry32(idx * 7919 + 101 + (mode === "daily" ? 5000 : 0));
+  wheel = shuffled(LEVELS[idx].letters, rng);
+  selection = []; dragging = false; dragMoved = false;
+  elWinModal.classList.remove("show");
+  elMapModal.classList.remove("show");
+  render();
+}
+function openMap() {
+  const grid = document.getElementById("mapGrid");
+  grid.innerHTML = "";
+  LEVELS.forEach((L, i) => {
+    const b = document.createElement("button");
+    const st = save.levels[i];
+    b.textContent = faNum(i + 1) + (st && st.done ? " ⭐" : "");
+    if (st && st.done) b.classList.add("done");
+    if (i === cur && mode === "normal") b.classList.add("cur");
+    b.disabled = i > save.unlocked;
+    b.addEventListener("click", () => startLevel(i, "normal"));
+    grid.appendChild(b);
+  });
+  const di = dailyIndexFor(new Date());
+  const doneToday = !!save.daily[todayKey(new Date())];
+  document.getElementById("mapSub").textContent =
+    "چالش امروز: مرحله " + faNum(di + 1) + (doneToday ? " — انجام شده ⭐" : " — جایزه‌اش ۵۰ سکه است!");
+  elMapModal.classList.add("show");
+}
+function toast(msg) {
+  elToast.textContent = msg; elToast.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => elToast.classList.remove("show"), 2200);
+}
+
+/* ---------- Buttons ---------- */
+const btnMute = document.getElementById("btnMute");
+function paintMute() { btnMute.textContent = save.muted ? "🔇" : "🔊"; }
+btnMute.addEventListener("click", () => { save.muted = !save.muted; persist(); paintMute(); });
+document.getElementById("btnMap").addEventListener("click", openMap);
+document.getElementById("btnMapClose").addEventListener("click", () => elMapModal.classList.remove("show"));
+document.getElementById("btnBack").addEventListener("click", backspace);
+document.getElementById("btnClear").addEventListener("click", clearSel);
+document.getElementById("btnShuffle").addEventListener("click", shuffleWheel);
+document.getElementById("btnHint").addEventListener("click", hint);
+document.getElementById("btnSubmit").addEventListener("click", submitWord);
+document.getElementById("btnNext").addEventListener("click", () => startLevel(Math.min(cur + 1, LEVELS.length - 1), "normal"));
+document.getElementById("btnWinMap").addEventListener("click", () => { elWinModal.classList.remove("show"); openMap(); });
+document.getElementById("btnDailyGo").addEventListener("click", () => startLevel(dailyIndexFor(new Date()), "daily"));
+elBonusBar.addEventListener("click", () => {
+  const st = levelState(cur);
+  document.getElementById("bonusList").innerHTML = st.bonus.length
+    ? st.bonus.map(w => '<span class="bonusWord">' + w + "</span>").join("")
+    : "<p>هنوز واژه اضافی‌ای پیدا نکرده‌ای!</p>";
+  elBonusModal.classList.add("show");
+});
+document.getElementById("btnBonusClose").addEventListener("click", () => elBonusModal.classList.remove("show"));
+window.addEventListener("resize", renderWheel);
+
+startLevel(Math.min(save.unlocked, LEVELS.length - 1), "normal");
+paintMute();
+</script>
+</body>
+</html>
